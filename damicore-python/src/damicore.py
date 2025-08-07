@@ -8,16 +8,20 @@ import ncd
 import igraph
 import tree_simplification as nj
 from tree import newick_format, to_graph
+from cli import get_base_parser, prepare_environment
 
 def clustering(directory, compression_name='gzip', pairing_name='concat',
-    is_parallel = True, **kwargs):
+    is_parallel = True, tree_joining_algorithm='nj', **kwargs):
   sys.stderr.write('Performing NCD distance matrix calculation...\n')
   ncd_results = ncd.distance_matrix(directory, compression_name, pairing_name,
       is_parallel = is_parallel, **kwargs)
 
   sys.stderr.write('\nSimplifying graph...\n')
   m, ids = ncd.to_matrix(ncd_results)
-  tree = nj.neighbor_joining(m, ids)
+  if tree_joining_algorithm == 'upgma':
+      tree = nj.upgma(m, ids)
+  else: # default to nj
+      tree = nj.neighbor_joining(m, ids)
 
   sys.stderr.write('\nClustering elements...\n')
   g = to_graph(tree)
@@ -49,39 +53,23 @@ def calc_weights(lengths, min_length=1):
   return norm_length
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(add_help=False, parents=[ncd.cli_parser()])
+  base_parser = get_base_parser()
+  parser = argparse.ArgumentParser(
+      description='DAMICORE is an easy-to-use clustering and classification tool.',
+      parents=[base_parser])
+  parser.add_argument('-o', '--output', help='output file (default: stdout)')
   parser.add_argument('--ncd-output', help='File to output NCD result')
   parser.add_argument('--tree-output', help='File to output tree result')
   parser.add_argument('--graph-image', help='File to output graph image')
+  parser.add_argument('--format', choices=['csv', 'phylip'],
+      help='Choose matrix format (default: csv) for the NCD output file')
   a = parser.parse_args()
 
-  ## TODO(brunokim): The following is copied from ncd.py, refactor to extract to
-  # a single place.
-  #
-  verbose = 0 if a.no_verbose else a.verbose
-  if verbose != 1:
-    sys.stderr.write('Note: verbosity level not implemented yet\n')
-
-  if not os.path.exists('tmp') or not os.path.isdir('tmp'):
-    os.mkdir('tmp')
-  if a.compressor == 'ppmd' and (
-      not os.path.exists('ppmd_tmp') or not os.path.isdir('ppmd_tmp')):
-    os.mkdir('ppmd_tmp')
- 
-  kwargs = {
-      'pair_dir': 'tmp',
-      'ppmd_tmp_dir': 'ppmd_tmp',
-      'slowness': a.slowness,
-      'model_order': a.model_order,
-      'memory': a.memory,
-      'block_size': a.block_size,
-  }
-  #
-  ## end copied section ##
+  kwargs = prepare_environment(a)
 
   d = clustering(a.directory,
       compression_name = a.compressor, pairing_name = a.pairing,
-      is_parallel = not a.serial, **kwargs)
+      is_parallel = not a.serial, tree_joining_algorithm = a.tree_joining_algorithm, **kwargs)
 
   # Outputs NCD step
   if a.ncd_output is not None:

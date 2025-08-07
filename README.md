@@ -15,7 +15,7 @@ datasets, datasets with difficult characteristics extraction and text datasets.
      ... |  '-----'  | ...                 |    '----'    |        /        |
      x_n |           | x_n dn1 dn2     dnn |              | x_2---'         |
     -----'           '---------------------'              '-----------------'
-   
+
             Community detection        Clusters
     -----.                        .-----------------.
          |                        |  ___       ___  |
@@ -29,7 +29,7 @@ datasets, datasets with difficult characteristics extraction and text datasets.
 ## Dependencies
 
 ### Installation
-* python 2.7
+* python 3
 * igraph library (visit http://igraph.org/c for more informations)
 * python-igraph (visit http://igraph.org/python for more informations)
 
@@ -70,6 +70,11 @@ try using gzip or bzip2:
 
      $ ./damicore.py examples/texts --compressor gzip
 
+By default, the script uses Neighbor-Joining as tree joining algorithm. If you
+want to use UPGMA, you can use the `--tree-joining-algorithm` option:
+
+     $ ./damicore.py examples/texts --tree-joining-algorithm upgma
+
 For more information on available options, see --help.
 
 ## Contact
@@ -80,7 +85,6 @@ inform me at brunokim@icmc.usp.br.
 ## Known TODOs
 
 Lots of things to do! Among them:
-* Implement UPGMA as tree joining strategy
 * Use other community detection algorithm (Girvan-Newman, for example)
 * Create/find a cladogram layout for graph visualization
 * Include compressors commonly available for Windows (WinRAR, 7zip, etc.)

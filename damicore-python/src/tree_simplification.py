@@ -91,6 +91,75 @@ def join_neighbors(tree, i, j, di, dj):
   new_tree.pop(j)
   return new_tree
 
+def upgma(m, ids=None):
+    """UPGMA algorithm."""
+    n = len(m)
+    if ids is None:
+        ids = artificial_ids(n)
+
+    # Turn m symmetric (and floating-point) if it's not already
+    m = [
+        [(m[i][j] + m[j][i]) / 2.0 for i in range(n)]
+        for j in range(n)
+    ]
+
+    tree = [Leaf(id_) for id_ in ids]
+    cluster_sizes = [1] * n
+
+    curr_n = n
+    while curr_n > 1:
+        # Find closest clusters
+        min_dist = float('inf')
+        c1, c2 = -1, -1
+        for i in range(curr_n):
+            for j in range(i + 1, curr_n):
+                if m[i][j] < min_dist:
+                    min_dist = m[i][j]
+                    c1, c2 = i, j
+
+        # Merge clusters c1 and c2. New cluster at c1, c2 is removed.
+
+        # Calculate new distances
+        new_row = []
+        for i in range(curr_n):
+            if i != c1 and i != c2:
+                dist = (cluster_sizes[c1] * m[c1][i] + cluster_sizes[c2] * m[c2][i]) / (cluster_sizes[c1] + cluster_sizes[c2])
+                new_row.append(dist)
+
+        # Update tree
+        # The distance to the new node is half the distance between clusters
+        dist = min_dist / 2.0
+        if c1 > c2:
+            c1, c2 = c2, c1 # ensure c1 < c2
+        tree = join_neighbors(tree, c1, c2, dist, dist)
+
+        # Update cluster sizes
+        cluster_sizes[c1] += cluster_sizes[c2]
+        cluster_sizes.pop(c2)
+
+        # Update distance matrix
+        # Rebuild row c1
+        new_row_c1 = []
+        new_row_idx = 0
+        for i in range(curr_n):
+            if i == c1:
+                new_row_c1.append(0)
+            elif i != c2:
+                new_row_c1.append(new_row[new_row_idx])
+                new_row_idx += 1
+
+        m.pop(c2)
+        for row in m:
+            row.pop(c2)
+
+        m[c1] = new_row_c1
+        for i in range(len(m)):
+            m[i][c1] = new_row_c1[i]
+
+        curr_n -= 1
+
+    return tree[0]
+
 def neighbor_joining(m, ids=None):
   """Neighbor Joining algorithm.
   
@@ -145,3 +214,15 @@ if __name__ == '__main__':
   m, ids = distance_matrix(expected_tree)
   tree = neighbor_joining(m, ids)
   print(tree, expected_tree)
+
+  # Test for UPGMA
+  print("\nTesting UPGMA...")
+  m_upgma = [
+      [0, 2, 4, 6],
+      [2, 0, 4, 6],
+      [4, 4, 0, 6],
+      [6, 6, 6, 0]
+  ]
+  ids_upgma = ['A', 'B', 'C', 'D']
+  tree_upgma = upgma(m_upgma, ids_upgma)
+  print("UPGMA tree:", tree_upgma)
