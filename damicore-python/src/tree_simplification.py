@@ -111,7 +111,7 @@ def neighbor_joining(m, ids=None):
 
   for _ in range(n, 2, -1):
     # Find closest neighbors
-    s = map(sum, m)
+    s = list(map(sum, m))
     q = calculate_q(m, s)
 
     # Join neighbors and update distance matrix
@@ -141,7 +141,7 @@ if __name__ == '__main__':
 
   # Random test
   from tree import distance_matrix
-  expected_tree = _random_joining(map(str, range(10)))
+  expected_tree = _random_joining(list(map(str, range(10))))
   m, ids = distance_matrix(expected_tree)
   tree = neighbor_joining(m, ids)
   print(tree, expected_tree)

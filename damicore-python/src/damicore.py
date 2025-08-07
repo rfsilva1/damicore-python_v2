@@ -9,7 +9,7 @@ import igraph
 import tree_simplification as nj
 from tree import newick_format, to_graph
 
-def clustering(directory, compression_name='ppmd', pairing_name='concat',
+def clustering(directory, compression_name='gzip', pairing_name='concat',
     is_parallel = True, **kwargs):
   sys.stderr.write('Performing NCD distance matrix calculation...\n')
   ncd_results = ncd.distance_matrix(directory, compression_name, pairing_name,

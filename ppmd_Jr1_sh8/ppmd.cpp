@@ -3,7 +3,6 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
-#include <conio.h>
 
 typedef unsigned short word;
 typedef unsigned int   uint;
@@ -64,7 +63,7 @@ void fprocess( var& x, int l, FILE* f ) {
 
 char logo[256];
 
-__declspec(noreturn)
+__attribute__((noreturn))
 void PrintError( char* s ) {
   if( Silent) printf( logo );
   printf( s );
@@ -91,7 +90,7 @@ void Switch_ProcessFile( FILE* Source, FILE* Target ) {
 int main( int argc, char** argv ) {
 
   sprintf( logo, "PPMd Jr1 (c) 2006 Dmitry Shkarin\n"
-                 "Revision sh8 by Eugene D. Shelwien [%s]\n", __DATE );
+                 "Revision sh8 by Eugene D. Shelwien [%s]\n", __DATE__ );
 
   int i,j,k; char temp[256];
   FILE* Source;

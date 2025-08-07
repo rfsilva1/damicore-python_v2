@@ -366,7 +366,7 @@ def to_matrix(ncd_results):
   ids = sorted(set(files))
   n = len(ids)
 
-  m = [[0.0 for _ in xrange(n)] for _ in xrange(n)]
+  m = [[0.0 for _ in range(n)] for _ in range(n)]
 
   for result in ncd_results:
     i, j = ids.index(result.x), ids.index(result.y)
@@ -419,7 +419,7 @@ def cli_parser():
       help='Directory containing files to compare')
 
   parser.add_argument('-c', '--compressor', choices=compression.keys(),
-      default='ppmd', help='Compressor to use (default: ppmd)')
+      default='gzip', help='Compressor to use (default: gzip)')
   parser.add_argument('-P', '--pairing', choices=pairing.keys(),
       default='concat', help='Pairing method to use (default: concat)')
   parser.add_argument('-o', '--output', help='output file (default: stdout)')
