@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 from tree import Node, Leaf, Edge
 from math import log10, ceil
@@ -19,13 +19,13 @@ def num_digits(x):
 def artificial_ids(n):
   """Generates n artificial ids."""
   return ['_n{num:>0{max}}'.format(num=i, max=num_digits(n))
-        for i in xrange(n)]
+        for i in range(n)]
 
 def matrix_argmin(m):
   """Returns indices of the minimum value in m."""
-  indices = xrange(len(m))
+  indices = range(len(m))
   return min([(i,j) for i in indices for j in indices],
-      key = lambda (i,j): m[i][j])
+      key = lambda ij: m[ij[0]][ij[1]])
 
 def calculate_q(m, sums):
   """Calculates matrix Q of the neighbor joining algorithm.
@@ -34,7 +34,7 @@ def calculate_q(m, sums):
   tree if nodes i and j are joined.
   """
   n = len(m)
-  indices = xrange(n)
+  indices = range(n)
   q = [[0.0 for _ in indices] for _ in indices]
 
   for i, row in enumerate(m):
@@ -60,11 +60,11 @@ def update_distance_matrix(m, sums, i, j):
 
   di = (dij + (si - sj)/(n - 2))/2
   dj = (dij + (sj - si)/(n - 2))/2
-  dk = [(m[i][k] + m[j][k] - dij)/2 for k in xrange(n)]
+  dk = [(m[i][k] + m[j][k] - dij)/2 for k in range(n)]
 
   new_m = [[dij for dij in row] for row in m]
 
-  for k in xrange(n):
+  for k in range(n):
     new_m[i][k] = new_m[k][i] = dk[k]
 
   new_m.pop(j)
@@ -104,12 +104,12 @@ def neighbor_joining(m, ids=None):
 
   # Turn m symmetric (and floating-point) if it's not already
   m = [ 
-      [(m[i][j] + m[j][i])/2.0 for i in xrange(n)]
-      for j in xrange(n)]
+      [(m[i][j] + m[j][i])/2.0 for i in range(n)]
+      for j in range(n)]
 
   tree = [Leaf(id_) for id_ in ids]
 
-  for _ in xrange(n, 2, -1):
+  for _ in range(n, 2, -1):
     # Find closest neighbors
     s = map(sum, m)
     q = calculate_q(m, s)
@@ -126,8 +126,8 @@ def _random_joining(ids):
   """Generates a tree by repeatedly joining elements randomly."""
   r = Random()
   tree = [Leaf(id_) for id_ in ids]
-  for _ in xrange(len(ids) - 1):
-    i, j = sorted(r.sample(xrange(len(tree)), 2))
+  for _ in range(len(ids) - 1):
+    i, j = sorted(r.sample(range(len(tree)), 2))
     tree = join_neighbors(tree, i, j, r.random(), r.random())
 
   return tree[0]
@@ -137,11 +137,11 @@ if __name__ == '__main__':
   expected_tree, m, ids = test_tree()
   tree = neighbor_joining(m, ids)
 
-  print tree, expected_tree
+  print(tree, expected_tree)
 
   # Random test
   from tree import distance_matrix
-  expected_tree = _random_joining(map(str, xrange(10)))
+  expected_tree = _random_joining(map(str, range(10)))
   m, ids = distance_matrix(expected_tree)
   tree = neighbor_joining(m, ids)
-  print tree, expected_tree
+  print(tree, expected_tree)

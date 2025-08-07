@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import argparse
 import os
@@ -127,7 +127,7 @@ if __name__ == '__main__':
     out += '%s,%d\n' % (fname, cluster)
 
   if a.output is None:
-    print out
+    print(out)
   else:
     with open(a.output, 'wt') as f:
       f.write(out)

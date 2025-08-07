@@ -1,0 +1,83 @@
+
+28-11-2008 sh1
+ + weird CLI replaced with simpler one
+ + decode/encode functions merged
+ + 30k source size instead of original 64k
+ + one multiplication removed in binary rc,
+   also precision slightly improved (and compression)
+ - might be not portable to 64-bit systems atm
+
+30-11-2008 sh1 bugfix
+ + GlueFreeBlocks() mistake fixed
+ + PrintInfo() mistake fixed
+ + -r1 support added (via c1/d1 options)
+
+04-12-2008 sh2
+ + StartModel, UpdateModel and CreateSuccessors reformatted
+ + some things tweaked, compression should be slightly better again
+
+06-12-2008 sh3
+ + Reformatting complete
+ + command line verification added
+ + compression reversibility checked:
+
+07-12-2008 sh4
+ * Jr1_sh3 was the last "pure PPMd" version
+   The rest would certainly introduce various "anti-optimizations".
+ + "Model" class created, with ProcessByte function in it
+ + processFile function implemented via ProcessByte and moved to ppmd.cpp
+ + processSymbol functions moved from PPM_CONTEXT class into Model class.
+ + stats printed with 0.5s interval, instead of every 64k
+ + sh_v1m rangecoder attached
+
+10-12-2008 sh5
+ + coding functions updated
+ + rc calls in branches merged
+ + sh5 with additional statistics (sh5a)
+
+18-03-2009 sh5 bugfix
+ + FIX: Missing line in ExpandTextArea() was causing an exception
+   while encoding (wrong "optimization").
+
+18-03-2009 sh6
+ + File descriptions added
+ + This version info added
+ + version with model stats merged into main branch (enabled by macro)
+ + real CLI added (ported from ash)
+ + E8 included
+
+27.03.2009 sh7
+ + file header processing branches merged (encoding/decoding)
+ + PrintInfo() replaced with simpler rewrite
+ + main processing loop moved into file_process.inc
+ + EOF symbol check removed (redundancy remains)
+ + EscCount turned uint, CharMask flush removed
+ + all global vars are incapsulated into Model class
+ + final file stats fixed
+ + UseE8 turned into template parameter
+
+05.04.2009 sh7 bugfix
+ + FIX: mismatch in E8 filter near EOF
+ + executable built with PGO for better benchmarking (5% speedup)
+
+16.04.2009 sh8
+ + support for entropy stats removed
+ + ppmd_process.inc renamed to model.inc
+ + ProcessByte moved to ppmd_byte.inc
+ + RestoreModel() (tree flush) moved from ProcessByte to ProcessFile
+ + CutOff completely removed from the model
+ + now ProcessFile selects RestoreModel or StartModel
+ + file handles removed from model class, along with rc init
+ + rangecoder removed from the model, now is external
+ + flags (CutOff,UseE8,RCType) packed into byte
+ + new, less precise rangecoder added, selectable by /c1
+
+cmp.size enc.tim dec.tim
+20784612 41.203s 42.516s  ppmd_sh7 /q /m1900 enwik8
+20784611 39.297s 41.156s  ppmd_sh8 /q /m1900 enwik8
+20784861 37.687s 38.046s  ppmd_sh8 /q /c1 /m1900 enwik8
+
+sh8/c1 encoding faster than sh7 by 8.53%
+sh8/c1 encoding faster than sh8/c0 by 4.09%
+sh8/c1 decoding faster than sh7 by 10.51%
+sh8/c1 decoding faster than sh8/c0 by 7.55%

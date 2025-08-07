@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import argparse
 import os
@@ -44,7 +44,7 @@ def ppmd_compression(fname, model_order = 6,
   @return Size of compressed file in bytes
   """
   tmp_fname = os.path.join(ppmd_tmp_dir, os.path.basename(fname))
-  print fname, tmp_fname
+  print(fname, tmp_fname)
   with open(os.devnull, 'w') as devnull:
     call(['ppmd', 'e', '-o%d' % model_order, '-f%s' % tmp_fname, fname],
         stdout=devnull)
@@ -109,7 +109,7 @@ def interleave(fname1, fname2, block_size = 1024,
   with open(fname, 'wb') as f,\
       open(fname1, 'rb') as i1,\
       open(fname2, 'rb') as i2:
-    for _ in xrange(0, maxsize, block_size):
+    for _ in range(0, maxsize, block_size):
       x1 = i1.read(block_size)
       x2 = i2.read(block_size)
       f.write(x1 + x2)
@@ -283,7 +283,7 @@ def _parallel_distance_matrix(fnames, compression_name, pairing_name, **kwargs):
  
   async_result = pool.map_async(_parallel_compression_worker, compression_args)
 
-  for _ in xrange(len(fnames)):
+  for _ in range(len(fnames)):
     queue.get(timeout=5)
     progress_bar.increment()
 
@@ -308,7 +308,7 @@ def _parallel_distance_matrix(fnames, compression_name, pairing_name, **kwargs):
   async_result = pool.map_async(_parallel_ncd_worker, ncd_args)
   pool.close()
 
-  for _ in xrange(len(file_pairs)):
+  for _ in range(len(file_pairs)):
     queue.get(timeout=5)
     progress_bar.increment()
 
@@ -495,7 +495,7 @@ if __name__ == '__main__':
     out = csv_format(results)
   
   if a.output is None:
-    print out
+    print(out)
   else:
     with open(a.output, 'wt') as f:
       f.write(out)

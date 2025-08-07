@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import itertools as it
 
@@ -72,7 +72,7 @@ try:
     if serial is None:
       serial = it.count(-1, -1)
 
-    c = tree.content if tree.content is not None else str(serial.next())
+    c = tree.content if tree.content is not None else str(next(serial))
 
     if is_root and is_unrooted and len(tree.children()) == 2:
       left, right = [to_graph(child, g, serial) for child in tree.children()]
