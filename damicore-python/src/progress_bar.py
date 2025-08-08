@@ -3,22 +3,25 @@
 import sys
 
 class ProgressBar:
-  def __init__(self, end, length = 20):
+  def __init__(self, end, length = 20, verbose=1):
     self.end = end
     self.length = length
     self.count = 0
-    sys.stderr.write(str(self))
+    self.verbose = verbose
+    if self.verbose > 0:
+      sys.stderr.write(str(self))
   
   def increment(self):
-    percent = 100 * self.count / self.end
-    next_percent = 100 * (self.count + 1) / self.end
+    if self.verbose > 0:
+      percent = 100 * self.count / self.end
+      next_percent = 100 * (self.count + 1) / self.end
 
-    delta = float(self.length) / self.end
-    size = int(round(delta * self.count))
-    next_size = int(round(delta * (self.count + 1)))
+      delta = float(self.length) / self.end
+      size = int(round(delta * self.count))
+      next_size = int(round(delta * (self.count + 1)))
 
-    if next_size != size or percent != next_percent: 
-      sys.stderr.write(str(self))
+      if next_size != size or percent != next_percent:
+        sys.stderr.write(str(self))
 
     self.count += 1
 

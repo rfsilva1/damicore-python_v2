@@ -185,9 +185,9 @@ def ncd(compression_fn, pairing_fn, fname1, fname2, compressed_sizes = None,
 
 def _parallel_compression_worker(args):
   """Wrapper for parallel calculation of compressed sizes."""
-  compression_name, fname, queue, progress_bar, kwargs = (
+  compression_name, fname, queue, kwargs = (
       args.get('cname'), args.get('fname'), args.get('queue'),
-      args.get('progress'), args.get('kwargs'))
+      args.get('kwargs'))
 
   if compression_name is None:
     raise Exception('Compression not given')
@@ -200,17 +200,14 @@ def _parallel_compression_worker(args):
   if queue is not None:
     queue.put(x)
 
-  if progress_bar is not None:
-    progress_bar.increment()
-
   return x
 
 def _parallel_ncd_worker(args):
   """Wrapper for parallel calculation of NCD pairs."""
-  compression_name, pairing_name, fname1, fname2, queue, progress_bar,\
+  compression_name, pairing_name, fname1, fname2, queue,\
   compressed_sizes, kwargs = (args.get('cname'), args.get('pname'),
       args.get('f1'), args.get('f2'),
-      args.get('queue'), args.get('progress'), args.get('zip'),
+      args.get('queue'), args.get('zip'),
       args.get('kwargs'))
 
   if compression_name is None:
@@ -229,17 +226,15 @@ def _parallel_ncd_worker(args):
   if queue is not None:
     queue.put(result)
 
-  if progress_bar is not None:
-    progress_bar.increment()
-
   return result
 
 #### Distance matrix calculations ####
 
-def _serial_distance_matrix(fnames, compression_fn, pairing_fn, **kwargs):
+def _serial_distance_matrix(fnames, compression_fn, pairing_fn, verbose=1, **kwargs):
   """Serial calculation for distance matrix."""
-  sys.stderr.write('Compressing individual files...\n')
-  progress_bar = ProgressBar(len(fnames))
+  if verbose > 0:
+    sys.stderr.write('Compressing individual files...\n')
+  progress_bar = ProgressBar(len(fnames), verbose=verbose)
   
   def update_progress(fname):
     x = compression_fn(fname)
@@ -249,7 +244,8 @@ def _serial_distance_matrix(fnames, compression_fn, pairing_fn, **kwargs):
 
   zip_size = dict(zip(fnames, compressed_sizes))
 
-  sys.stderr.write('\nCompressing file pairs...\n')
+  if verbose > 0:
+    sys.stderr.write('\nCompressing file pairs...\n')
   file_pairs = [(fname1, fname2)
       for fname1 in fnames
       for fname2 in fnames
@@ -267,15 +263,16 @@ def _serial_distance_matrix(fnames, compression_fn, pairing_fn, **kwargs):
   sys.stderr.write('\n')
   return ncd_results
 
-def _parallel_distance_matrix(fnames, compression_name, pairing_name, **kwargs):
+def _parallel_distance_matrix(fnames, compression_name, pairing_name, verbose=1, **kwargs):
   """Parallel calculation of distance matrix."""
   num_cpus = mp.cpu_count()
   manager = mp.Manager()
   pool = mp.Pool(num_cpus)
   queue = manager.Queue(2*num_cpus)
 
-  sys.stderr.write('Compressing individual files...\n')
-  progress_bar = ProgressBar(len(fnames))
+  if verbose > 0:
+    sys.stderr.write('Compressing individual files...\n')
+  progress_bar = ProgressBar(len(fnames), verbose=verbose)
 
   compression_args = [{
     'cname': compression_name, 'fname': fname,
@@ -318,7 +315,7 @@ def _parallel_distance_matrix(fnames, compression_name, pairing_name, **kwargs):
   return ncd_results
 
 def distance_matrix(directory, compression_name, pairing_name,
-    is_parallel=True, **kwargs):
+    is_parallel=True, verbose=1, **kwargs):
   """Calculates matrix of distances between all files in a given directory.
 
   @param directory Directory with files to compare
@@ -335,10 +332,10 @@ def distance_matrix(directory, compression_name, pairing_name,
 
   if is_parallel:
     ncd_results = _parallel_distance_matrix(fnames, compression_name,
-        pairing_name, **kwargs)
+        pairing_name, verbose=verbose, **kwargs)
   else:
     ncd_results = _serial_distance_matrix(fnames, compression[compression_name],
-        pairing[pairing_name], **kwargs)
+        pairing[pairing_name], verbose=verbose, **kwargs)
 
   return ncd_results
 

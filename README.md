@@ -77,6 +77,22 @@ want to use UPGMA, you can use the `--tree-joining-algorithm` option:
 
 For more information on available options, see --help.
 
+### Bootstrapping
+
+DAMICORE can perform bootstrapping to assess the stability of the clustering.
+By providing the `--bootstrap` option, the script will resample the input files
+with replacement and perform the clustering for each replicate.
+
+     $ ./damicore.py examples/texts --bootstrap 100
+
+This will run 100 bootstrap replicates and output a report with feature
+importance and variable pair stability. You can also specify output files for
+these reports:
+
+        $ ./damicore.py examples/texts --bootstrap 100 \
+        --feature-importance-output importance.csv \
+        --pair-stability-output stability.csv
+
 ## Contact
 
 If you believe you have found a bug, or would like to ask for a feature, please

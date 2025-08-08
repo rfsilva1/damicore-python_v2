@@ -112,6 +112,38 @@ except ImportError:
     raise NotImplementedError(
         'Current implementation needs igraph, which is not installed')
 
+def get_partitions(tree):
+    """Returns a set of all partitions in a tree."""
+    partitions = set()
+    all_leaves_ids = frozenset([l.content for l in leafs(tree)])
+
+    def get_subtree_leaves(node):
+        if not node.children():
+            return frozenset([node.content])
+
+        subtree_leaves = frozenset()
+        for child in node.children():
+            subtree_leaves = subtree_leaves.union(get_subtree_leaves(child))
+
+        # Add the partition defined by this node, if it's not trivial
+        if subtree_leaves != all_leaves_ids:
+            complement = all_leaves_ids - subtree_leaves
+            # frozenset of frozensets to make it hashable and order-independent
+            partition = frozenset([subtree_leaves, complement])
+            partitions.add(partition)
+
+        return subtree_leaves
+
+    get_subtree_leaves(tree)
+    return partitions
+
+def relabel_leafs(tree, label_map):
+    """Relabels the leaves of a tree according to a map."""
+    for leaf in leafs(tree):
+        if leaf.content in label_map:
+            leaf.content = label_map[leaf.content]
+    return tree
+
 def test_tree():
   """
               D

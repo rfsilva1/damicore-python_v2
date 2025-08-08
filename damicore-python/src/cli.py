@@ -43,14 +43,13 @@ def get_base_parser():
     misc_group.add_argument('-V', '--version', action='version', version='0.0.1')
     misc_group.add_argument('--tree-joining-algorithm', choices=['nj', 'upgma'], default='nj',
                         help='Tree joining algorithm to use (default: nj)')
+    misc_group.add_argument('--bootstrap', type=int, default=0,
+                        help='Number of bootstrap replicates to generate.')
     return parser
 
 def prepare_environment(args):
     """Prepares environment for execution, creating directories."""
     verbose = 0 if args.no_verbose else args.verbose
-    if verbose != 1:
-        sys.stderr.write('Note: verbosity level not implemented yet\n')
-
     if not os.path.exists('tmp') or not os.path.isdir('tmp'):
         os.mkdir('tmp')
     if args.compressor == 'ppmd' and (
