@@ -8,7 +8,6 @@ import ncd
 import igraph
 import tree_simplification as nj
 from tree import newick_format, to_graph, relabel_leafs
-from cli import get_base_parser, prepare_environment
 from consensus import get_partition_frequencies, get_coclustering_frequencies, calculate_feature_importance, get_variable_pair_stability
 
 def clustering(directory, compression_name='gzip', pairing_name='concat',
@@ -46,16 +45,6 @@ def clustering(directory, compression_name='gzip', pairing_name='concat',
       'fname_cluster': membership,
   }
 
-def calc_weights(lengths, min_length=1):
-  n = len(lengths)
-  mean = float(sum(lengths)) / n
-  var = sum((l - mean)**2 for l in lengths) / n
-  stddev = math.sqrt(var)
-  scores = [(l - mean)/stddev for l in lengths]
-  min_score = min(scores)
-  norm_length = [min_length + (score - min_score) for score in scores]
-  return norm_length
-
 def generate_csv_report(data, filename):
     """Generates a consolidated CSV report from the analysis results."""
     with open(filename, 'w') as f:
@@ -86,164 +75,194 @@ def generate_csv_report(data, filename):
                 freq = data['coclustering_frequencies'][pair]
                 f.write(f"{'-'.join(pair)},{freq:.4f},{1 - stab_score:.4f}\n")
 
+def calc_weights(lengths, min_length=1):
+  n = len(lengths)
+  mean = float(sum(lengths)) / n
+  var = sum((l - mean)**2 for l in lengths) / n
+  stddev = math.sqrt(var)
+  scores = [(l - mean)/stddev for l in lengths]
+  min_score = min(scores)
+  norm_length = [min_length + (score - min_score) for score in scores]
+  return norm_length
+
 if __name__ == '__main__':
-    base_parser = get_base_parser()
-    parser = argparse.ArgumentParser(
-        description='DAMICORE is an easy-to-use clustering and classification tool.',
-        parents=[base_parser])
-    parser.add_argument('-o', '--output', help='output file (default: stdout)')
-    parser.add_argument('--ncd-output', help='File to output NCD result')
-    parser.add_argument('--tree-output', help='File to output tree result')
-    parser.add_argument('--graph-image', help='File to output graph image')
-    parser.add_argument('--format', choices=['csv', 'phylip'],
-        help='Choose matrix format (default: csv) for the NCD output file')
-    parser.add_argument('--feature-importance-output', help='File to output feature importance scores')
-    parser.add_argument('--pair-stability-output', help='File to output variable pair stability scores')
-    parser.add_argument('--csv-report', help='File to output consolidated CSV report')
-    a = parser.parse_args()
+  parser = argparse.ArgumentParser(add_help=False, parents=[ncd.cli_parser()])
+  parser.add_argument('--ncd-output', help='File to output NCD result')
+  parser.add_argument('--tree-output', help='File to output tree result')
+  parser.add_argument('--graph-image', help='File to output graph image')
+  parser.add_argument('--csv-report', help='File to output consolidated CSV report')
+  parser.add_argument('-b', '--bootstrap', type=int, default=0,
+      help='Number of bootstrap replicates for stability analysis')
+  parser.add_argument('--feature-importance-output', help='File to output feature importance scores')
+  parser.add_argument('--pair-stability-output', help='File to output variable pair stability scores')
+  parser.add_argument('--layout', choices=['fr', 'cladogram'], default='fr',
+      help='Graph layout algorithm (default: fr)')
+  parser.add_argument('--tree-joining-algorithm', choices=['nj', 'upgma'], default='nj',
+      help='Tree joining algorithm (default: nj)')
+  a = parser.parse_args()
 
-    kwargs = prepare_environment(a)
+  verbose = 0 if a.no_verbose else a.verbose
 
-    report_data = {}
-    if a.bootstrap > 0:
-        import random
-        import shutil
+  if not os.path.exists('tmp') or not os.path.isdir('tmp'):
+    os.mkdir('tmp')
+  if a.compressor == 'ppmd' and (
+      not os.path.exists('ppmd_tmp') or not os.path.isdir('ppmd_tmp')):
+    os.mkdir('ppmd_tmp')
 
-        trees = []
-        clusterings = []
-        original_fnames = sorted(os.listdir(a.directory))
-        original_fnames_paths = [os.path.join(os.path.abspath(a.directory), fname) for fname in original_fnames if os.path.isfile(os.path.join(a.directory, fname))]
+  kwargs = {
+      'pair_dir': 'tmp',
+      'ppmd_tmp_dir': 'ppmd_tmp',
+      'slowness': a.slowness,
+      'model_order': a.model_order,
+      'memory': a.memory,
+      'block_size': a.block_size,
+  }
+  #
+  ## end copied section ##
 
-        for i in range(a.bootstrap):
-            sys.stderr.write('-- Bootstrap replicate {}/{} --\n'.format(i+1, a.bootstrap))
+  report_data = {}
+  if a.bootstrap > 0:
+      import random
+      import shutil
+      from tree import relabel_leafs
 
-            bootstrap_dir = 'bootstrap_{}'.format(i)
-            if os.path.exists(bootstrap_dir):
-                shutil.rmtree(bootstrap_dir)
-            os.mkdir(bootstrap_dir)
+      trees = []
+      clusterings = []
+      original_fnames = sorted(os.listdir(a.directory))
+      original_fnames_paths = [os.path.join(os.path.abspath(a.directory), fname) for fname in original_fnames if os.path.isfile(os.path.join(a.directory, fname))]
 
-            bootstrapped_fnames_paths = random.choices(original_fnames_paths, k=len(original_fnames_paths))
+      for i in range(a.bootstrap):
+          if verbose > 0:
+              sys.stderr.write('-- Bootstrap replicate {}/{} --\n'.format(i+1, a.bootstrap))
 
-            symlink_map = {}
-            for j, fname_path in enumerate(bootstrapped_fnames_paths):
-                symlink_name = 'file_{}'.format(j)
-                os.symlink(fname_path, os.path.join(bootstrap_dir, symlink_name))
-                symlink_map[symlink_name] = os.path.basename(fname_path)
+          bootstrap_dir = 'bootstrap_{}'.format(i)
+          if os.path.exists(bootstrap_dir):
+              shutil.rmtree(bootstrap_dir)
+          os.mkdir(bootstrap_dir)
 
-            verbose = 0 if a.no_verbose else a.verbose
-            d = clustering(bootstrap_dir,
-                compression_name = a.compressor, pairing_name = a.pairing,
-                is_parallel = not a.serial, tree_joining_algorithm = a.tree_joining_algorithm,
-                verbose=verbose, **kwargs)
+          bootstrapped_fnames_paths = random.choices(original_fnames_paths, k=len(original_fnames_paths))
 
-            relabelled_tree = relabel_leafs(d['tree'], symlink_map)
-            trees.append(relabelled_tree)
+          symlink_map = {}
+          for j, fname_path in enumerate(bootstrapped_fnames_paths):
+              symlink_name = 'file_{}'.format(j)
+              os.symlink(fname_path, os.path.join(bootstrap_dir, symlink_name))
+              symlink_map[symlink_name] = os.path.basename(fname_path)
 
-            relabelled_fname_cluster = {symlink_map[fname]: cluster for fname, cluster in d['fname_cluster'].items()}
-            clusterings.append(relabelled_fname_cluster)
+          d = clustering(bootstrap_dir,
+              compression_name = a.compressor, pairing_name = a.pairing,
+              is_parallel = not a.serial, verbose=verbose, **kwargs)
 
-            shutil.rmtree(bootstrap_dir)
+          relabelled_tree = relabel_leafs(d['tree'], symlink_map)
+          trees.append(relabelled_tree)
 
-        coclustering_frequencies, items = get_coclustering_frequencies(clusterings)
+          relabelled_fname_cluster = {symlink_map[fname]: cluster for fname, cluster in d['fname_cluster'].items()}
+          clusterings.append(relabelled_fname_cluster)
 
-        print("\n--- Analysis Report ---")
+          shutil.rmtree(bootstrap_dir)
 
-        # Feature importance
-        importance = calculate_feature_importance(coclustering_frequencies, items)
-        print("\nFeature Importance (higher is more important):")
-        for item, score in sorted(importance.items(), key=lambda x: x[1], reverse=True):
-            print("{}: {:.4f}".format(item, score))
+      coclustering_frequencies, items = get_coclustering_frequencies(clusterings)
 
-        # Variable pair stability
-        stability = get_variable_pair_stability(coclustering_frequencies)
-        sorted_stability = sorted(stability.items(), key=lambda x: x[1])
+      if verbose > 0:
+          print("\n--- Analysis Report ---")
 
-        print("\nMost Unstable Pairs (frequency close to 0.5):")
-        for pair, stab_score in sorted_stability[:5]:
-            freq = coclustering_frequencies[pair]
-            print("{}: frequency = {:.4f}, stability = {:.4f}".format(pair, freq, 1 - stab_score))
+      # Feature importance
+      importance = calculate_feature_importance(coclustering_frequencies, items)
+      if verbose > 0:
+          print("\nFeature Importance (higher is more important):")
+          for item, score in sorted(importance.items(), key=lambda x: x[1], reverse=True):
+              print("{}: {:.4f}".format(item, score))
 
-        print("\nMost Stable Pairs (frequency close to 0 or 1):")
-        for pair, stab_score in sorted_stability[-5:]:
-            freq = coclustering_frequencies[pair]
-            print("{}: frequency = {:.4f}, stability = {:.4f}".format(pair, freq, 1 - stab_score))
+      # Variable pair stability
+      stability = get_variable_pair_stability(coclustering_frequencies)
+      sorted_stability = sorted(stability.items(), key=lambda x: x[1])
 
-        if a.feature_importance_output:
-            with open(a.feature_importance_output, 'w') as f:
-                f.write("feature,importance\n")
-                for item, score in sorted(importance.items(), key=lambda x: x[1], reverse=True):
-                    f.write("{},{:.4f}\n".format(item, score))
+      if verbose > 0:
+          print("\nMost Unstable Pairs (frequency close to 0.5):")
+          for pair, stab_score in sorted_stability[:5]:
+              freq = coclustering_frequencies[pair]
+              print("{}: frequency = {:.4f}, stability = {:.4f}".format(pair, freq, 1 - stab_score))
 
-        if a.pair_stability_output:
-            with open(a.pair_stability_output, 'w') as f:
-                f.write("pair,stability,frequency\n")
-                for pair, stab_score in sorted_stability:
-                    freq = coclustering_frequencies[pair]
-                    f.write("{},{:.4f},{:.4f}\n".format('-'.join(pair), 1 - stab_score, freq))
+          print("\nMost Stable Pairs (frequency close to 0 or 1):")
+          for pair, stab_score in sorted_stability[-5:]:
+              freq = coclustering_frequencies[pair]
+              print("{}: frequency = {:.4f}, stability = {:.4f}".format(pair, freq, 1 - stab_score))
 
-        report_data['feature_importance'] = importance
-        report_data['coclustering_frequencies'] = coclustering_frequencies
-        report_data['stability'] = {
-            'unstable': sorted_stability[:5],
-            'stable': sorted_stability[-5:]
-        }
+      if a.feature_importance_output:
+          with open(a.feature_importance_output, 'w') as f:
+              f.write("feature,importance\n")
+              for item, score in sorted(importance.items(), key=lambda x: x[1], reverse=True):
+                  f.write("{},{:.4f}\n".format(item, score))
 
-    else:
-        verbose = 0 if a.no_verbose else a.verbose
-        d = clustering(a.directory,
-            compression_name = a.compressor, pairing_name = a.pairing,
-            is_parallel = not a.serial, tree_joining_algorithm = a.tree_joining_algorithm,
-            verbose=verbose, **kwargs)
+      if a.pair_stability_output:
+          with open(a.pair_stability_output, 'w') as f:
+              f.write("pair,stability,frequency\n")
+              for pair, stab_score in sorted_stability:
+                  freq = coclustering_frequencies[pair]
+                  f.write("{},{:.4f},{:.4f}\n".format('-'.join(pair), 1 - stab_score, freq))
 
-        # Outputs NCD step
-        if a.ncd_output is not None:
-          ncd_results = d['ncd']
-          if a.format == 'phylip':
-            ncd_out = ncd.phylip_format(ncd_results)
-          else:
-            ncd_out = ncd.csv_format(ncd_results)
-          with open(a.ncd_output, 'wt') as f:
-            f.write(ncd_out)
+      report_data['feature_importance'] = importance
+      report_data['coclustering_frequencies'] = coclustering_frequencies
+      report_data['stability'] = {
+          'unstable': sorted_stability[:5],
+          'stable': sorted_stability[-5:]
+      }
+  else:
+      d = clustering(a.directory,
+          compression_name = a.compressor, pairing_name = a.pairing,
+          is_parallel = not a.serial, verbose=verbose, **kwargs)
 
-        # Outputs tree in Newick format
-        if a.tree_output is not None:
-          tree = d['tree']
-          with open(a.tree_output, 'wt') as f:
-            f.write(newick_format(tree))
-
-        # Outputs graph image
-        if a.graph_image is not None:
-          g = d['graph']
-          node_clustering = d['node_clustering']
-          fnames = d['fnames']
-          tree = d['tree']
-
-          style = {}
-          seed_layout = g.layout('rt_circular', root=tree.content)
-
-          layout = g.layout('fr', seed=seed_layout.coords,
-              weights=calc_weights(g.es["length"]))
-          style['layout'] = layout
-          style['vertex_size'] = [
-              3 if v['name'] not in fnames else 10
-              for v in g.vs]
-          style['vertex_label'] = [
-              '' if v['name'] not in fnames else v['name']
-              for v in g.vs]
-          igraph.plot(node_clustering, target=a.graph_image, **style)
-
-        # Output cluster membership
-        out = 'filename,cluster\n'
-        for fname, cluster in d['fname_cluster'].items():
-          out += '%s,%d\n' % (fname, cluster)
-
-        if a.output is None:
-          print(out)
+      # Outputs NCD step
+      if a.ncd_output is not None:
+        ncd_results = d['ncd']
+        if a.format == 'phylip':
+          ncd_out = ncd.phylip_format(ncd_results)
         else:
-          with open(a.output, 'wt') as f:
-            f.write(out)
+          ncd_out = ncd.csv_format(ncd_results)
+        with open(a.ncd_output, 'wt') as f:
+          f.write(ncd_out)
 
-        report_data['fname_cluster'] = d['fname_cluster']
+      # Outputs tree in Newick format
+      if a.tree_output is not None:
+        tree = d['tree']
+        with open(a.tree_output, 'wt') as f:
+          f.write(newick_format(tree))
 
-    if a.csv_report:
-        generate_csv_report(report_data, a.csv_report)
+      # Outputs graph image
+      # TODO(brunokim): use a dendogram layout, which igraph seems to be lacking
+      if a.graph_image is not None:
+        g = d['graph']
+        node_clustering = d['node_clustering']
+        fnames = d['fnames']
+        tree = d['tree']
+
+        style = {}
+        if a.layout == 'fr':
+            seed_layout = g.layout('rt_circular', root=tree.content)
+            layout = g.layout('fr', seed=seed_layout.coords,
+                weights=calc_weights(g.es["length"]))
+        else: # cladogram
+            layout = g.layout_reingold_tilford(root=[g.vs.find(name=tree.content).index])
+        style['layout'] = layout
+        style['vertex_size'] = [
+            3 if v['name'] not in fnames else 10
+            for v in g.vs]
+        style['vertex_label'] = [
+            '' if v['name'] not in fnames else v['name']
+            for v in g.vs]
+        igraph.plot(node_clustering, target=a.graph_image, **style)
+
+      # Output cluster membership
+      out = 'filename,cluster\n'
+      for fname, cluster in d['fname_cluster'].items():
+        out += '%s,%d\n' % (fname, cluster)
+
+      if a.output is None:
+        print(out)
+      else:
+        with open(a.output, 'wt') as f:
+          f.write(out)
+      report_data['fname_cluster'] = d['fname_cluster']
+
+  if a.csv_report:
+      generate_csv_report(report_data, a.csv_report)
+

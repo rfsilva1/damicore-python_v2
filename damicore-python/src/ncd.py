@@ -7,7 +7,6 @@ import multiprocessing as mp
 from shutil import copyfileobj as copy
 from subprocess import Popen, PIPE, call
 from progress_bar import ProgressBar
-from cli import get_base_parser, prepare_environment
 
 def gzip_compression(fname, slowness = 6, **kwargs):
   """Compression using gzip executable.
@@ -185,9 +184,9 @@ def ncd(compression_fn, pairing_fn, fname1, fname2, compressed_sizes = None,
 
 def _parallel_compression_worker(args):
   """Wrapper for parallel calculation of compressed sizes."""
-  compression_name, fname, queue, kwargs = (
+  compression_name, fname, queue, progress_bar, kwargs = (
       args.get('cname'), args.get('fname'), args.get('queue'),
-      args.get('kwargs'))
+      args.get('progress'), args.get('kwargs'))
 
   if compression_name is None:
     raise Exception('Compression not given')
@@ -200,14 +199,17 @@ def _parallel_compression_worker(args):
   if queue is not None:
     queue.put(x)
 
+  if progress_bar is not None:
+    progress_bar.increment()
+
   return x
 
 def _parallel_ncd_worker(args):
   """Wrapper for parallel calculation of NCD pairs."""
-  compression_name, pairing_name, fname1, fname2, queue,\
+  compression_name, pairing_name, fname1, fname2, queue, progress_bar,\
   compressed_sizes, kwargs = (args.get('cname'), args.get('pname'),
       args.get('f1'), args.get('f2'),
-      args.get('queue'), args.get('zip'),
+      args.get('queue'), args.get('progress'), args.get('zip'),
       args.get('kwargs'))
 
   if compression_name is None:
@@ -226,6 +228,9 @@ def _parallel_ncd_worker(args):
   if queue is not None:
     queue.put(result)
 
+  if progress_bar is not None:
+    progress_bar.increment()
+
   return result
 
 #### Distance matrix calculations ####
@@ -234,11 +239,12 @@ def _serial_distance_matrix(fnames, compression_fn, pairing_fn, verbose=1, **kwa
   """Serial calculation for distance matrix."""
   if verbose > 0:
     sys.stderr.write('Compressing individual files...\n')
-  progress_bar = ProgressBar(len(fnames), verbose=verbose)
+  progress_bar = ProgressBar(len(fnames)) if verbose == 1 else None
   
   def update_progress(fname):
     x = compression_fn(fname)
-    progress_bar.increment()
+    if progress_bar:
+      progress_bar.increment()
     return x
   compressed_sizes = map(update_progress, fnames)
 
@@ -250,17 +256,19 @@ def _serial_distance_matrix(fnames, compression_fn, pairing_fn, verbose=1, **kwa
       for fname1 in fnames
       for fname2 in fnames
       if fname1 < fname2]
-  progress_bar = ProgressBar(len(file_pairs))
+  progress_bar = ProgressBar(len(file_pairs)) if verbose == 1 else None
 
   def update_progress(pair):
     fname1, fname2 = pair
     ncd_result = ncd(compression_fn, pairing_fn, fname1, fname2,
         (zip_size[fname1], zip_size[fname2]), **kwargs)
-    progress_bar.increment()
+    if progress_bar:
+      progress_bar.increment()
     return ncd_result
   ncd_results = map(update_progress, file_pairs)
 
-  sys.stderr.write('\n')
+  if verbose > 0:
+    sys.stderr.write('\n')
   return ncd_results
 
 def _parallel_distance_matrix(fnames, compression_name, pairing_name, verbose=1, **kwargs):
@@ -272,35 +280,35 @@ def _parallel_distance_matrix(fnames, compression_name, pairing_name, verbose=1,
 
   if verbose > 0:
     sys.stderr.write('Compressing individual files...\n')
-  progress_bar = ProgressBar(len(fnames), verbose=verbose)
+  progress_bar = ProgressBar(len(fnames)) if verbose == 1 else None
 
   compression_args = [{
     'cname': compression_name, 'fname': fname,
-    'queue': queue, 'kwargs': kwargs}
+    'queue': queue, 'progress': progress_bar, 'kwargs': kwargs}
     for fname in fnames]
  
   async_result = pool.map_async(_parallel_compression_worker, compression_args)
 
   for _ in range(len(fnames)):
     queue.get(timeout=5)
-    progress_bar.increment()
 
   compressed_sizes = async_result.get()
 
   zip_size = dict(zip(fnames, compressed_sizes))
 
-  sys.stderr.write('\nCompressing file pairs...\n')
+  if verbose > 0:
+    sys.stderr.write('\nCompressing file pairs...\n')
   file_pairs = [(fname1, fname2)
       for fname1 in fnames
       for fname2 in fnames
       if fname1 < fname2]
-  progress_bar = ProgressBar(len(file_pairs))
+  progress_bar = ProgressBar(len(file_pairs)) if verbose == 1 else None
 
   ncd_args = [{
     'cname': compression_name,
     'pname': pairing_name,
     'f1': fname1, 'f2': fname2,
-    'queue': queue, 'zip': (zip_size[fname1], zip_size[fname2]),
+    'queue': queue, 'progress': progress_bar, 'zip': (zip_size[fname1], zip_size[fname2]),
     'kwargs': kwargs} for fname1, fname2 in file_pairs]
 
   async_result = pool.map_async(_parallel_ncd_worker, ncd_args)
@@ -308,10 +316,10 @@ def _parallel_distance_matrix(fnames, compression_name, pairing_name, verbose=1,
 
   for _ in range(len(file_pairs)):
     queue.get(timeout=5)
-    progress_bar.increment()
 
   ncd_results = async_result.get()
-  sys.stderr.write('\n')
+  if verbose > 0:
+    sys.stderr.write('\n')
   return ncd_results
 
 def distance_matrix(directory, compression_name, pairing_name,
@@ -404,22 +412,81 @@ def phylip_format(ncd_results, alternative_ids = None):
 
   return s
 
-from cli import get_base_parser, prepare_environment
+#### Command-line interface parser ####
 
-if __name__ == '__main__':
-  base_parser = get_base_parser()
+def cli_parser():
+  """Returns CLI parser for script.
+
+  This may be useful for other scripts willing to call this one.
+  """
   parser = argparse.ArgumentParser(
-        description='Calculates NCD matrix between objects',
-        parents=[base_parser])
+      description='Calculates NCD matrix between objects')
+  parser.add_argument('directory',
+      help='Directory containing files to compare')
+
+  parser.add_argument('-c', '--compressor', choices=compression.keys(),
+      default='gzip', help='Compressor to use (default: gzip)')
+  parser.add_argument('-P', '--pairing', choices=pairing.keys(),
+      default='concat', help='Pairing method to use (default: concat)')
   parser.add_argument('-o', '--output', help='output file (default: stdout)')
   parser.add_argument('-f', '--format', choices=['csv', 'phylip'],
       help='Choose matrix format (default: csv)')
+
+  compressor_group = parser.add_argument_group('Compressor options',
+      'Options to control compressor behavior')
+  compressor_group.add_argument('--slowness', '--gzip-slowness',
+      '--bzip2-slowness', default=6, type=int,
+      help='(gzip, bzip2) slowness of compression (1-9): ' +
+      '1 is faster, 9 is best compression')
+  compressor_group.add_argument('--model-order', '--ppmd-model-order',
+      default=6, type=int,
+      help='(ppmd) model order (2-16): 2 is faster, 16 is best')
+  compressor_group.add_argument('--memory', '--ppmd-memory',
+      default=10, type=int, help='(ppmd) maximum memory, in MiB (1-256)')
+  compressor_group.add_argument('--block-size', '--interleave-block-size',
+      default=1024, type=int,
+      help='(interleave) block size for interleaving, in bytes')
+
+  misc_group = parser.add_argument_group('General options')
+
+  is_serial = misc_group.add_mutually_exclusive_group()
+  is_serial.add_argument('--serial', action='store_true',
+      help='Compute compressions serially')
+  is_serial.add_argument('--parallel', action='store_true',
+      help='Compute compressions in parallel (default)')
+
+  misc_group.add_argument('-v', '--verbose', action='count',
+      help='Verbose output. Repeat to increase verbosity level (default: 1)',
+      default = 1)
+  misc_group.add_argument('--no-verbose', action='store_true',
+      help='Turn verbosity off')
+  misc_group.add_argument('-V', '--version', action='version', version='0.0.1')
+
+  return parser
+
+if __name__ == '__main__':
+  parser = cli_parser()
   a = parser.parse_args()
 
-  kwargs = prepare_environment(a)
+  verbose = 0 if a.no_verbose else a.verbose
+
+  if not os.path.exists('tmp') or not os.path.isdir('tmp'):
+    os.mkdir('tmp')
+  if a.compressor == 'ppmd' and (
+      not os.path.exists('ppmd_tmp') or not os.path.isdir('ppmd_tmp')):
+    os.mkdir('ppmd_tmp')
+
+  kwargs = {
+      'pair_dir': 'tmp',
+      'ppmd_tmp_dir': 'ppmd_tmp',
+      'slowness': a.slowness,
+      'model_order': a.model_order,
+      'memory': a.memory,
+      'block_size': a.block_size,
+  }
   
   results = distance_matrix(a.directory, a.compressor, a.pairing,
-      is_parallel = not a.serial, **kwargs)
+      is_parallel = not a.serial, verbose=verbose, **kwargs)
 
   if a.format == 'phylip':
     out = phylip_format(results)

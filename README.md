@@ -29,7 +29,7 @@ datasets, datasets with difficult characteristics extraction and text datasets.
 ## Dependencies
 
 ### Installation
-* python 3
+* python 2.7
 * igraph library (visit http://igraph.org/c for more informations)
 * python-igraph (visit http://igraph.org/python for more informations)
 
@@ -70,28 +70,7 @@ try using gzip or bzip2:
 
      $ ./damicore.py examples/texts --compressor gzip
 
-By default, the script uses Neighbor-Joining as tree joining algorithm. If you
-want to use UPGMA, you can use the `--tree-joining-algorithm` option:
-
-     $ ./damicore.py examples/texts --tree-joining-algorithm upgma
-
 For more information on available options, see --help.
-
-### Bootstrapping
-
-DAMICORE can perform bootstrapping to assess the stability of the clustering.
-By providing the `--bootstrap` option, the script will resample the input files
-with replacement and perform the clustering for each replicate.
-
-     $ ./damicore.py examples/texts --bootstrap 100
-
-This will run 100 bootstrap replicates and output a report with feature
-importance and variable pair stability. You can also specify output files for
-these reports:
-
-        $ ./damicore.py examples/texts --bootstrap 100 \
-        --feature-importance-output importance.csv \
-        --pair-stability-output stability.csv
 
 ## Contact
 
@@ -101,6 +80,7 @@ inform me at brunokim@icmc.usp.br.
 ## Known TODOs
 
 Lots of things to do! Among them:
+* Implement UPGMA as tree joining strategy
 * Use other community detection algorithm (Girvan-Newman, for example)
 * Create/find a cladogram layout for graph visualization
 * Include compressors commonly available for Windows (WinRAR, 7zip, etc.)
